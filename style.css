@@ -147,3 +147,6 @@ header h1 { margin: 4px 0 2px; font-size: 1.6rem; }
 }
 .sticker-box img { max-height: 80px; }
 .hint { margin: 8px 0 0; color: var(--muted); font-size: 0.85rem; line-height: 1.35; }
+.paste-cutout { width: 100%; }
+.hint.steps { margin: 6px 0 12px; }
+.upload { margin-top: 2px; }

@@ -29,18 +29,17 @@
 
       <div class="panel">
         <h2>Sticker</h2>
+        <button id="pasteBtn" class="btn primary paste-cutout" type="button">📋 Paste iPhone cutout</button>
+        <p class="hint steps">In Photos, touch and hold the person or object until it glows → tap <b>Copy</b> → come back and tap <b>Paste iPhone cutout</b> → tap <b>Paste</b>.</p>
         <div class="stickers" id="stickers"></div>
-        <div class="row import-row">
-          <label class="btn upload">
-            Upload image
-            <input id="fileInput" type="file" accept="image/*,.png,.heic,.heif,.webp" hidden />
-          </label>
-          <button id="pasteBtn" class="btn" type="button">Paste sticker</button>
-        </div>
+        <label class="btn upload">
+          Upload image
+          <input id="fileInput" type="file" accept="image/*,.png,.heic,.heif,.webp" hidden />
+        </label>
         <div id="stickerBox" class="sticker-box" contenteditable="true" role="textbox"
-             aria-label="Insert a sticker or emoji here"
-             data-placeholder="Tap here, then pick a sticker or emoji from your keyboard"></div>
-        <p class="hint">Transparent PNGs look best. On iPhone, open the emoji keyboard and swipe to your stickers, or long-press a photo's subject, tap Copy, then tap Paste sticker.</p>
+             aria-label="Paste or insert a sticker here"
+             data-placeholder="Or tap here and paste, or pick a sticker or emoji from your keyboard"></div>
+        <p class="hint">Transparent PNGs look best. Apple stickers: tap the box above, open the emoji keyboard and swipe to your stickers.</p>
       </div>
 
       <div class="panel">

@@ -196,7 +196,31 @@
     c.width = Math.max(1, Math.round(img.naturalWidth * s));
     c.height = Math.max(1, Math.round(img.naturalHeight * s));
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-    return c;
+    return trimTransparent(c);
+  }
+
+  // Crop away empty transparent edges so cutouts fill the frame.
+  function trimTransparent(c) {
+    let data;
+    try { data = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; } catch (_) { return c; }
+    let top = c.height, left = c.width, right = -1, bottom = -1;
+    for (let y = 0; y < c.height; y++) {
+      for (let x = 0; x < c.width; x++) {
+        if (data[(y * c.width + x) * 4 + 3] > 8) {
+          if (x < left) left = x;
+          if (x > right) right = x;
+          if (y < top) top = y;
+          bottom = y;
+        }
+      }
+    }
+    if (right < 0) return c;                                   // fully transparent
+    const w = right - left + 1, h = bottom - top + 1;
+    if (w === c.width && h === c.height) return c;             // nothing to trim
+    const out = document.createElement('canvas');
+    out.width = w; out.height = h;
+    out.getContext('2d').drawImage(c, left, top, w, h, 0, 0, w, h);
+    return out;
   }
 
   function selectButton(btn) {
@@ -280,7 +304,7 @@
         const type = item.types.find((t) => t.startsWith('image/'));
         if (type) { addCustomStickerFromBlob(await item.getType(type)); return; }
       }
-      setStatus('No image on the clipboard. Copy a sticker or picture first.');
+      setStatus('No picture on the clipboard yet. In Photos, touch and hold the subject, tap Copy, then try again.');
     } catch (err) {
       setStatus('Could not paste. Tap the box below and paste there instead.');
     }

@@ -4,7 +4,7 @@ Record a voice message and watch a sticker shake along with your voice, like a l
 
 - **Silence = still.** Below a loudness gate the sticker doesn't move at all.
 - **Louder = more shake.** Shake distance, wobble and squash scale with how loud you speak.
-- **Stickers:** pick an emoji or upload any image (transparent PNGs look best).
+- **Stickers:** pick an emoji, upload any image (PNG, JPG, HEIC), paste a copied image, or insert an Apple sticker or emoji from the keyboard into the sticker box.
 - **Export:** saves an MP4 (Chrome, Safari) or WebM (Firefox) with your audio, plus a Share button on phones.
 - **Sliders:** *Intensity* controls how wild the shake is; *Sensitivity* controls how quiet a sound still counts as talking. There's also a background color and a green-screen option for editing.
 

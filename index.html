@@ -30,10 +30,17 @@
       <div class="panel">
         <h2>Sticker</h2>
         <div class="stickers" id="stickers"></div>
-        <label class="btn upload">
-          Upload image
-          <input id="fileInput" type="file" accept="image/*" hidden />
-        </label>
+        <div class="row import-row">
+          <label class="btn upload">
+            Upload image
+            <input id="fileInput" type="file" accept="image/*,.png,.heic,.heif,.webp" hidden />
+          </label>
+          <button id="pasteBtn" class="btn" type="button">Paste sticker</button>
+        </div>
+        <div id="stickerBox" class="sticker-box" contenteditable="true" role="textbox"
+             aria-label="Insert a sticker or emoji here"
+             data-placeholder="Tap here, then pick a sticker or emoji from your keyboard"></div>
+        <p class="hint">Transparent PNGs look best. On iPhone, open the emoji keyboard and swipe to your stickers, or long-press a photo's subject, tap Copy, then tap Paste sticker.</p>
       </div>
 
       <div class="panel">

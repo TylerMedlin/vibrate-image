@@ -19,6 +19,8 @@
   const meterFill = $('meterFill');
   const stickersEl = $('stickers');
   const fileInput = $('fileInput');
+  const pasteBtn = $('pasteBtn');
+  const stickerBox = $('stickerBox');
   const intensityEl = $('intensity');
   const sensitivityEl = $('sensitivity');
   const bgColorEl = $('bgColor');
@@ -44,11 +46,32 @@
   const clamp01 = (v) => Math.max(0, Math.min(1, v));
   const setStatus = (msg) => { statusEl.textContent = msg; };
 
+  // iPhone: 'playback' makes sound ignore the silent switch and use the loudspeaker
+  // (the mic otherwise leaves audio routed to the quiet earpiece).
+  function setAudioSession(type) {
+    try { if (navigator.audioSession) navigator.audioSession.type = type; } catch (_) { /* unsupported */ }
+  }
+
+  // Must be called from a tap so Safari lets the audio start.
   function ensureAudioCtx() {
+    if (audioCtx && (audioCtx.state === 'closed' || audioCtx.state === 'interrupted')) {
+      audioCtx.close().catch(() => {});
+      audioCtx = null;
+    }
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioCtx.state !== 'running') audioCtx.resume().catch(() => {});
     return audioCtx;
   }
+
+  function releaseAudioCtx() {
+    if (audioCtx) audioCtx.close().catch(() => {});
+    audioCtx = null;
+  }
+
+  const player = new Audio();      // plays the preview (not muted by the silent switch)
+  player.setAttribute('playsinline', '');
+  player.preload = 'auto';
+  let audioUrl = null;
 
   // Map loudness (dBFS) to a 0..1 shake level. Anything below the gate is
   // silence and keeps the sticker perfectly still.
@@ -194,23 +217,115 @@
 
   EMOJIS.forEach((e, i) => addStickerButton(e, emojiCanvas(e), i === 0));
 
+  // ---------- Importing your own stickers ----------
+  // Adds an image (PNG with transparency, Apple sticker, photo…) as the selected sticker.
+  function addCustomSticker(src) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const art = imageCanvas(img);
+        const thumb = new Image();
+        thumb.src = art.toDataURL('image/png');
+        thumb.alt = 'Your sticker';
+        const btn = addStickerButton(thumb, art, false);
+        stickersEl.insertBefore(btn, stickersEl.firstChild);
+        btn.click();
+        setStatus('Sticker added. Tap Record and start talking.');
+        resolve(true);
+      };
+      img.onerror = () => {
+        setStatus('Could not read that image. Try a PNG, JPG or HEIC, or copy it and tap Paste.');
+        resolve(false);
+      };
+      img.src = src;
+    });
+  }
+
+  function addCustomStickerFromBlob(blob) {
+    const url = URL.createObjectURL(blob);
+    addCustomSticker(url).then(() => URL.revokeObjectURL(url));
+  }
+
+  function firstImageFile(dt) {
+    if (!dt) return null;
+    for (const f of Array.from(dt.files || [])) if (f.type.startsWith('image/') || /\.(hei[cf]|png|webp)$/i.test(f.name)) return f;
+    for (const it of Array.from(dt.items || [])) {
+      if (it.kind === 'file' && it.type.startsWith('image/')) { const f = it.getAsFile(); if (f) return f; }
+    }
+    return null;
+  }
+
+  function addEmojiSticker(text) {
+    const btn = addStickerButton(text, emojiCanvas(text), false);
+    stickersEl.insertBefore(btn, stickersEl.firstChild);
+    btn.click();
+    setStatus('Emoji added. Tap Record and start talking.');
+  }
+
   fileInput.addEventListener('change', () => {
     const file = fileInput.files && fileInput.files[0];
-    if (!file) return;
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const thumb = new Image();
-      thumb.src = url;
-      thumb.alt = 'Uploaded sticker';
-      const btn = addStickerButton(thumb, imageCanvas(img), false);
-      stickersEl.insertBefore(btn, stickersEl.firstChild);
-      btn.click();
-      setStatus('Image added. Tap Record and start talking.');
-    };
-    img.onerror = () => setStatus('Could not load that image. Try a PNG or JPG.');
-    img.src = url;
+    if (file) addCustomStickerFromBlob(file);
     fileInput.value = '';
+  });
+
+  pasteBtn.addEventListener('click', async () => {
+    if (!navigator.clipboard || !navigator.clipboard.read) {
+      setStatus('Your browser blocks the Paste button. Tap the box below and paste there instead.');
+      stickerBox.focus();
+      return;
+    }
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const type = item.types.find((t) => t.startsWith('image/'));
+        if (type) { addCustomStickerFromBlob(await item.getType(type)); return; }
+      }
+      setStatus('No image on the clipboard. Copy a sticker or picture first.');
+    } catch (err) {
+      setStatus('Could not paste. Tap the box below and paste there instead.');
+    }
+  });
+
+  // Paste anywhere on the page (e.g. Cmd/Ctrl+V on a computer).
+  document.addEventListener('paste', (e) => {
+    const f = firstImageFile(e.clipboardData);
+    if (f) { e.preventDefault(); addCustomStickerFromBlob(f); stickerBox.textContent = ''; }
+  });
+
+  // The box accepts stickers from the iPhone emoji keyboard, pasted images, or an emoji.
+  stickerBox.addEventListener('beforeinput', (e) => {
+    const f = firstImageFile(e.dataTransfer);
+    if (f) { e.preventDefault(); addCustomStickerFromBlob(f); }
+  });
+  stickerBox.addEventListener('input', () => {
+    // Let the browser finish inserting before reading what landed in the box.
+    setTimeout(async () => {
+      const img = stickerBox.querySelector('img');
+      if (img && img.src) {
+        const src = img.src;
+        stickerBox.textContent = '';
+        await addCustomSticker(src);
+        return;
+      }
+      const text = stickerBox.textContent.trim();
+      if (text && /\p{Extended_Pictographic}/u.test(text)) {
+        stickerBox.textContent = '';
+        addEmojiSticker(text);
+      }
+    }, 50);
+  });
+  stickerBox.addEventListener('keydown', (e) => { if (e.key === 'Enter') e.preventDefault(); });
+  stickerBox.addEventListener('blur', () => {
+    if (!stickerBox.querySelector('img') && !/\p{Extended_Pictographic}/u.test(stickerBox.textContent)) stickerBox.textContent = '';
+  });
+
+  // Drag and drop an image onto the box or the preview.
+  [stickerBox, canvas].forEach((el) => {
+    el.addEventListener('dragover', (e) => { e.preventDefault(); });
+    el.addEventListener('drop', (e) => {
+      const f = firstImageFile(e.dataTransfer);
+      if (f) { e.preventDefault(); addCustomStickerFromBlob(f); }
+    });
   });
 
   [intensityEl, sensitivityEl, bgColorEl].forEach((el) => el.addEventListener('input', () => {
@@ -245,13 +360,16 @@
       setStatus('This browser cannot record audio. Try Chrome or Safari.');
       return;
     }
+    releaseAudioCtx();
     const ac = ensureAudioCtx();
+    setAudioSession('play-and-record');
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false },
       });
     } catch (err) {
+      setAudioSession('playback');
       setStatus('Microphone access was blocked. Allow it in your browser settings and try again.');
       return;
     }
@@ -284,17 +402,24 @@
       cancelAnimationFrame(rafId);
       stream.getTracks().forEach((tr) => tr.stop());
       src.disconnect();
+      setAudioSession('playback');
       setStatus('Processing…');
       try {
         const blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
         const arr = await blob.arrayBuffer();
         audioBuffer = await decode(ac, arr);
         envelopeDb = computeEnvelope(audioBuffer);
+        if (audioUrl) URL.revokeObjectURL(audioUrl);
+        audioUrl = URL.createObjectURL(blob);
+        player.src = audioUrl;
+        player.load();
         setStatus(`Got ${audioBuffer.duration.toFixed(1)}s of audio. Tap Play to preview or Export to save a video.`);
       } catch (err) {
         console.error(err);
         setStatus('Could not read the recording. Please try again.');
       }
+      // Drop the mic's audio engine; Play/Export start a fresh one from a tap.
+      releaseAudioCtx();
       setMode('idle');
     };
 
@@ -320,13 +445,16 @@
     const source = ac.createBufferSource();
     source.buffer = audioBuffer;
     source.connect(outputNode);
+    // Also play out loud: you hear the export, and Safari only runs audio
+    // graphs that reach the speakers.
+    if (outputNode !== ac.destination) source.connect(ac.destination);
     const startAt = ac.currentTime + 0.05;
     let stopped = false;
 
     const loop = () => {
       if (stopped) return;
       const t = Math.max(0, ac.currentTime - startAt);
-      const level = levels[Math.min(levels.length - 1, Math.floor(t * FPS))] || 0;
+      const level = levelAt(levels, t);
       draw(level, t);
       setMeter(level);
       if (onProgress) onProgress(t);
@@ -354,12 +482,42 @@
     };
   }
 
+  function levelAt(levels, t) {
+    return levels[Math.min(levels.length - 1, Math.floor(t * FPS))] || 0;
+  }
+
+  // Preview uses a plain audio player so the iPhone silent switch doesn't mute it.
   function startPlayback() {
+    setAudioSession('playback');
+    const levels = smoothedLevels();
+    let stopped = false;
+    const finish = (msg) => {
+      if (stopped) return;
+      stopped = true;
+      cancelAnimationFrame(rafId);
+      player.onended = null;
+      player.pause();
+      setStatus(msg);
+      setMode('idle');
+    };
+    const loop = () => {
+      if (stopped) return;
+      const t = player.currentTime;
+      const level = levelAt(levels, t);
+      draw(level, t);
+      setMeter(level);
+      rafId = requestAnimationFrame(loop);
+    };
+    player.onended = () => finish('Done. Tap Export to save it as a video.');
+    stopCurrent = () => finish('Stopped.');
     setMode('playing');
     setStatus('Playing…');
-    stopCurrent = playAnimated(ensureAudioCtx().destination, () => {
-      setStatus('Done. Tap Export to save it as a video.');
-      setMode('idle');
+    try { player.currentTime = 0; } catch (_) { /* not loaded yet */ }
+    player.play().then(() => {
+      rafId = requestAnimationFrame(loop);
+    }).catch((err) => {
+      console.error(err);
+      finish('Could not play the audio. Check your volume and try again.');
     });
   }
 
@@ -376,12 +534,22 @@
     return options.find((m) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) || '';
   }
 
-  function startExport() {
+  async function startExport() {
     if (!canvas.captureStream || !window.MediaRecorder) {
       setStatus('Video export is not supported in this browser. Try Chrome or Safari.');
       return;
     }
-    const ac = ensureAudioCtx();
+    setAudioSession('playback');
+    const ac = ensureAudioCtx();   // created/resumed synchronously inside the tap
+    stopCurrent = () => {};
+    setMode('exporting');
+    setStatus('Preparing export…');
+    try { await ac.resume(); } catch (_) { /* checked below */ }
+    if (ac.state !== 'running') {
+      setMode('idle');
+      setStatus('Audio could not start. Tap Export again.');
+      return;
+    }
     const dest = ac.createMediaStreamDestination();
     const videoStream = canvas.captureStream(EXPORT_FPS);
     const stream = new MediaStream([...videoStream.getVideoTracks(), ...dest.stream.getAudioTracks()]);
@@ -406,7 +574,6 @@
     // Draw a still first frame so the video doesn't start blank.
     draw(0, 0);
     rec.start(500);
-    setMode('exporting');
     const total = audioBuffer.duration;
     const stopPlay = playAnimated(dest, (wasCancelled) => {
       cancelled = wasCancelled;
@@ -432,6 +599,12 @@
     shareBtn.hidden = !(navigator.canShare && navigator.canShare({ files: [file] }));
     shareBtn.onclick = () => navigator.share({ files: [file], title: 'Vibrate Image' }).catch(() => {});
     setStatus(`Video ready (${(blob.size / 1024 / 1024).toFixed(1)} MB, ${ext.toUpperCase()}).`);
+    // Safari can report the tracks; warn if the sound didn't make it in.
+    resultVideo.onloadedmetadata = () => {
+      if (resultVideo.audioTracks && resultVideo.audioTracks.length === 0) {
+        setStatus('The video was saved without sound. Turn off silent mode, raise the volume and tap Export again.');
+      }
+    };
     resultEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 

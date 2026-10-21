@@ -123,3 +123,27 @@ header h1 { margin: 4px 0 2px; font-size: 1.6rem; }
 
 .result video { width: 100%; border-radius: 14px; background: #000; margin-bottom: 10px; }
 .result .btn { flex: 1; }
+
+.import-row .btn { flex: 1 1 0; min-width: 0; }
+.sticker-box {
+  margin-top: 8px;
+  min-height: 52px;
+  max-height: 120px;
+  overflow: hidden;
+  padding: 14px;
+  border: 2px dashed var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 1.4rem;
+  text-align: center;
+  outline: none;
+}
+.sticker-box:focus { border-color: var(--accent); }
+.sticker-box:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.sticker-box img { max-height: 80px; }
+.hint { margin: 8px 0 0; color: var(--muted); font-size: 0.85rem; line-height: 1.35; }
